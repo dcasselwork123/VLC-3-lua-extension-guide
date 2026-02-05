@@ -310,20 +310,26 @@ async function searchAndStream(title, year = null) {
     let result = await ipcRenderer.invoke('search-yts', { title, year });
     
     if (result.success && result.data) {
-        console.log(`[DEBUG] YTS found: ${result.data.torrents ? result.data.torrents.length : 0} torrents`);
-        if (result.data.torrents && result.data.torrents.length > 0) {
-            result.data.torrents.forEach(t => {
-                allTorrents.push({
-                    source: 'YTS',
-                    quality: t.quality || 'Unknown',
-                    size: t.size || 'Unknown',
-                    seeds: t.seeds || 0,
-                    hash: t.hash,
-                    title: result.data.title,
-                    type: t.type || 'web'
-                });
+        console.log(`[DEBUG] YTS found: ${result.data.length} movies`);
+        // YTS now returns array of movies, each with torrents
+        if (Array.isArray(result.data)) {
+            result.data.forEach(movie => {
+                if (movie.torrents && movie.torrents.length > 0) {
+                    movie.torrents.forEach(t => {
+                        allTorrents.push({
+                            source: 'YTS',
+                            quality: t.quality || 'Unknown',
+                            size: t.size || 'Unknown',
+                            seeds: t.seeds || 0,
+                            hash: t.hash,
+                            title: movie.title || title,
+                            type: t.type || 'web'
+                        });
+                    });
+                }
             });
         }
+        console.log(`[DEBUG] YTS extracted ${allTorrents.length} torrents`);
     } else {
         console.log('[DEBUG] YTS search failed:', result.error);
     }
@@ -333,8 +339,7 @@ async function searchAndStream(title, year = null) {
     result = await ipcRenderer.invoke('search-piratebay', { title, year });
     
     if (result.success && result.data) {
-        console.log(`[DEBUG] TPB raw data:`, result.data);
-        const tpbData = result.data;
+        console.log(`[DEBUG] TPB returned ${Array.isArray(result.data) ? result.data.length : 1} results`);
         
         // Format size from bytes to readable format
         const formatSize = (bytes) => {
@@ -345,20 +350,30 @@ async function searchAndStream(title, year = null) {
             return `${mb} MB`;
         };
         
-        if (tpbData.info_hash) {
-            console.log(`[DEBUG] TPB found result with hash: ${tpbData.info_hash}`);
-            allTorrents.push({
-                source: 'ThePirateBay',
-                quality: 'Unknown',
-                size: formatSize(parseInt(tpbData.size)),
-                seeds: parseInt(tpbData.seeders) || 0,
-                hash: tpbData.info_hash,
-                title: tpbData.name || title,
-                type: 'tpb'
-            });
-        } else {
-            console.log('[DEBUG] TPB result missing info_hash');
-        }
+        // TPB now returns array of torrents
+        const tpbTorrents = Array.isArray(result.data) ? result.data : [result.data];
+        tpbTorrents.forEach(tpbData => {
+            if (tpbData.info_hash) {
+                // Try to extract quality from name
+                const name = tpbData.name || '';
+                let quality = 'Unknown';
+                if (name.includes('2160p') || name.includes('4K')) quality = '2160p';
+                else if (name.includes('1080p')) quality = '1080p';
+                else if (name.includes('720p')) quality = '720p';
+                else if (name.includes('480p')) quality = '480p';
+                
+                allTorrents.push({
+                    source: 'ThePirateBay',
+                    quality: quality,
+                    size: formatSize(parseInt(tpbData.size)),
+                    seeds: parseInt(tpbData.seeders) || 0,
+                    hash: tpbData.info_hash,
+                    title: tpbData.name || title,
+                    type: 'tpb'
+                });
+            }
+        });
+        console.log(`[DEBUG] TPB extracted ${tpbTorrents.length} torrents`);
     } else {
         console.log('[DEBUG] TPB search failed:', result.error);
     }

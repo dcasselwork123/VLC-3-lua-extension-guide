@@ -53,7 +53,7 @@ function createWindow() {
     icon: path.join(__dirname, 'assets', 'icon.png'),
     frame: true,
     titleBarStyle: 'default',
-    title: 'Real Debrid Streamer'
+    title: '🏰 CasselFlix - Your Castle of Entertainment'
   });
 
   mainWindow.loadFile('index.html');
@@ -229,7 +229,7 @@ ipcMain.handle('search-yts', async (event, { title, year }) => {
     console.log('Searching YTS for:', query);
     
     const response = await axios.get(
-      `https://yts.mx/api/v2/list_movies.json?query_term=${encodeURIComponent(query)}&limit=5`,
+      `https://yts.mx/api/v2/list_movies.json?query_term=${encodeURIComponent(query)}&limit=10`,
       { 
         timeout: 15000,
         headers: {
@@ -241,9 +241,10 @@ ipcMain.handle('search-yts', async (event, { title, year }) => {
     console.log('YTS response status:', response.data.status);
     
     if (response.data.data.movies && response.data.data.movies.length > 0) {
-      const movie = response.data.data.movies[0];
-      console.log('Found YTS movie:', movie.title, '- Torrents:', movie.torrents?.length || 0);
-      return { success: true, data: movie };
+      // Return ALL movies with torrents, not just first one
+      const moviesWithTorrents = response.data.data.movies.filter(m => m.torrents && m.torrents.length > 0);
+      console.log('Found YTS movies:', moviesWithTorrents.length);
+      return { success: true, data: moviesWithTorrents };
     }
     
     console.log('No YTS results');
@@ -272,15 +273,15 @@ ipcMain.handle('search-piratebay', async (event, { title, year }) => {
     );
     
     if (response.data && response.data.length > 0 && response.data[0].name !== 'No results returned') {
-      const torrent = response.data[0];
-      console.log('Found TPB torrent:', torrent.name);
-      console.log('TPB data:', JSON.stringify({
-        info_hash: torrent.info_hash,
-        size: torrent.size,
-        seeders: torrent.seeders,
-        name: torrent.name
-      }));
-      return { success: true, data: torrent };
+      // Return multiple results, not just first one
+      const torrents = response.data
+        .filter(t => t.name !== 'No results returned')
+        .slice(0, 10);
+      console.log('Found TPB torrents:', torrents.length);
+      if (torrents.length > 0) {
+        console.log('First TPB torrent:', torrents[0].name);
+      }
+      return { success: true, data: torrents };
     }
     
     console.log('No TPB results');

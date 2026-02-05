@@ -1,7 +1,7 @@
 {
-  "name": "realdebrid-streamer",
+  "name": "casselflix",
   "version": "1.0.0",
-  "description": "Netflix-style torrent streaming with Real Debrid",
+  "description": "CasselFlix - Your Castle of Endless Entertainment with Real Debrid",
   "main": "main.js",
   "scripts": {
     "start": "electron .",
@@ -10,8 +10,8 @@
     "build:installer": "electron-builder --win --x64 nsis",
     "pack": "electron-builder --dir"
   },
-  "keywords": ["realdebrid", "torrent", "streaming", "netflix"],
-  "author": "Real Debrid Streamer",
+  "keywords": ["casselflix", "realdebrid", "torrent", "streaming", "movies"],
+  "author": "CasselFlix",
   "license": "MIT",
   "dependencies": {
     "axios": "^1.6.0"
@@ -21,8 +21,8 @@
     "electron-builder": "^24.9.0"
   },
   "build": {
-    "appId": "com.realdebrid.streamer",
-    "productName": "Real Debrid Streamer",
+    "appId": "com.casselflix.app",
+    "productName": "CasselFlix",
     "directories": {
       "output": "dist"
     },
@@ -44,11 +44,11 @@
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "Real Debrid Streamer",
-      "artifactName": "RealDebridStreamer-Setup-${version}.exe"
+      "shortcutName": "CasselFlix",
+      "artifactName": "CasselFlix-Setup-${version}.exe"
     },
     "portable": {
-      "artifactName": "RealDebridStreamer-Portable.exe"
+      "artifactName": "CasselFlix-Portable.exe"
     },
     "files": [
       "**/*",
