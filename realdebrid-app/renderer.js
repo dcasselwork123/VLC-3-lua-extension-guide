@@ -499,11 +499,28 @@ async function streamMovieWithTorrentio(movie) {
         const seedsMatch = lines[2]?.match(/👤 (\\d+)/);
         const seeds = seedsMatch ? parseInt(seedsMatch[1]) : 0;
         
+        // Detect language from title - prioritize English
+        const title = (stream.title || stream.name || '').toLowerCase();
+        const hasNonEnglish = title.includes('french') || 
+                             title.includes('spanish') || 
+                             title.includes('german') || 
+                             title.includes('italian') || 
+                             title.includes('portuguese') || 
+                             title.includes('russian') ||
+                             title.includes('hindi') ||
+                             title.includes('korean') ||
+                             title.includes('japanese') ||
+                             title.includes('chinese') ||
+                             title.includes('multi') ||
+                             (title.includes('dub') && !title.includes('english'));
+        
+        const isEnglish = !hasNonEnglish || title.includes('english');
+        
         // Extract hash from infoHash or URL
         let hash = stream.infoHash;
         if (!hash && stream.url) {
-            const hashMatch = stream.url.match(/btih:([a-fA-F0-9]{40})/);
-            if (hashMatch) hash = hashMatch[1];
+            const hashMatch = stream.url.match(/btih:([a-fA-F0-9]{40})/i);
+            if (hashMatch) hash = hashMatch[1].toLowerCase();
         }
         
         return {
@@ -512,6 +529,8 @@ async function streamMovieWithTorrentio(movie) {
             source: source,
             seeds: seeds,
             title: stream.name || stream.title,
+            fullTitle: stream.title || stream.name,
+            isEnglish: isEnglish,
             raw: stream
         };
     }).filter(s => s.hash); // Only keep streams with valid hash
@@ -544,13 +563,17 @@ async function streamMovieWithTorrentio(movie) {
         stream.cachedFiles = hashData || {};
     });
     
-    // Prioritize cached streams
-    const cachedStreams = parsedStreams.filter(s => s.cached);
-    const uncachedStreams = parsedStreams.filter(s => !s.cached);
+    // Prioritize English and cached streams
+    const englishCached = parsedStreams.filter(s => s.cached && s.isEnglish);
+    const englishUncached = parsedStreams.filter(s => !s.cached && s.isEnglish);
+    const otherCached = parsedStreams.filter(s => s.cached && !s.isEnglish);
+    const otherUncached = parsedStreams.filter(s => !s.cached && !s.isEnglish);
     
-    console.log(`[DEBUG] Cached streams: ${cachedStreams.length}, Uncached: ${uncachedStreams.length}`);
+    console.log(`[DEBUG] English cached: ${englishCached.length}, English uncached: ${englishUncached.length}`);
+    console.log(`[DEBUG] Other cached: ${otherCached.length}, Other uncached: ${otherUncached.length}`);
     
-    const allStreams = [...cachedStreams, ...uncachedStreams];
+    // Combine: English cached > English uncached > Other cached > Other uncached
+    const allStreams = [...englishCached, ...englishUncached, ...otherCached, ...otherUncached];
     
     if (allStreams.length === 0) {
         showToast('No streams available', 'error');
@@ -565,14 +588,21 @@ function showStreamSelectionDialog(movieTitle, streams) {
     const modal = document.getElementById('movie-modal');
     const modalBody = document.getElementById('modal-body');
     
-    // Sort streams: cached first, then by quality and seeds
+    // Sort within each group by quality and seeds
     const qualityOrder = { '4K': 5, '2160p': 5, '1080p': 4, '720p': 3, '480p': 2 };
-    streams.sort((a, b) => {
-        if (a.cached !== b.cached) return a.cached ? -1 : 1;
+    const sortByQuality = (a, b) => {
         const qualityA = qualityOrder[a.quality] || 0;
         const qualityB = qualityOrder[b.quality] || 0;
         if (qualityA !== qualityB) return qualityB - qualityA;
         return b.seeds - a.seeds;
+    };
+    
+    // Already sorted by priority, just sort within groups
+    streams.sort((a, b) => {
+        // Keep priority order (English cached > English uncached > Other...)
+        if (a.isEnglish !== b.isEnglish) return a.isEnglish ? -1 : 1;
+        if (a.cached !== b.cached) return a.cached ? -1 : 1;
+        return sortByQuality(a, b);
     });
     
     let html = `
@@ -595,12 +625,17 @@ function showStreamSelectionDialog(movieTitle, streams) {
             ? `<span class="quality-badge quality-${stream.quality.toLowerCase().replace(/[^a-z0-9]/g, '')}">${stream.quality}</span>`
             : '';
         
+        const languageBadge = stream.isEnglish 
+            ? '<span class="lang-badge lang-en">🇬🇧 EN</span>'
+            : '<span class="lang-badge lang-other">🌍 Other</span>';
+        
         html += `
-            <div class="torrent-item ${stream.cached ? 'cached-item' : ''}" data-index="${index}">
+            <div class="torrent-item ${stream.cached ? 'cached-item' : ''} ${stream.isEnglish ? 'english-item' : ''}" data-index="${index}">
                 <div class="torrent-info">
                     <div class="torrent-header">
                         ${cachedBadge}
                         ${qualityBadge}
+                        ${languageBadge}
                         <span class="source-badge">${stream.source}</span>
                     </div>
                     <div class="torrent-details">

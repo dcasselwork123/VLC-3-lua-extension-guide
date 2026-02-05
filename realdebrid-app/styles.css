@@ -686,3 +686,25 @@ body {
 .stream-info-box strong {
     color: #d4af37;
 }
+
+/* Language Badges */
+.lang-badge {
+    padding: 4px 10px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: bold;
+}
+
+.lang-en {
+    background: #3498db;
+    color: #ffffff;
+}
+
+.lang-other {
+    background: #95a5a6;
+    color: #ffffff;
+}
+
+.english-item {
+    border-left: 3px solid #3498db;
+}

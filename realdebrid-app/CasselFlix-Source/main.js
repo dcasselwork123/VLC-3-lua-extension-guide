@@ -299,6 +299,7 @@ ipcMain.handle('rd-check-availability', async (event, { apiKey, hashes }) => {
     // Can check multiple hashes at once: hash1/hash2/hash3
     const hashString = hashes.slice(0, 100).join('/');
     console.log(`Checking RD availability for ${hashes.length} torrents...`);
+    console.log('First 3 hashes:', hashes.slice(0, 3));
     
     const response = await axios.get(
       `https://api.real-debrid.com/rest/1.0/torrents/instantAvailability/${hashString}`,
@@ -310,10 +311,16 @@ ipcMain.handle('rd-check-availability', async (event, { apiKey, hashes }) => {
       }
     );
     
-    console.log('RD availability check complete');
+    console.log('RD availability check complete. Keys:', Object.keys(response.data).length);
+    // Log first result as sample
+    const firstHash = Object.keys(response.data)[0];
+    if (firstHash) {
+      console.log('Sample result:', firstHash, '→', response.data[firstHash]);
+    }
     return { success: true, data: response.data };
   } catch (error) {
     console.error('RD availability error:', error.message);
+    console.error('RD availability full error:', error.response?.data || error);
     return { success: false, error: error.message };
   }
 });
