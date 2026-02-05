@@ -301,30 +301,61 @@ window.closeModal = closeModal;
 
 async function searchAndStream(title, year = null) {
     showToast('Searching for torrents...', 'success');
+    console.log(`[DEBUG] Searching for torrents: "${title}" (${year})`);
+    
+    let allTorrents = [];
     
     // Try YTS first
+    console.log('[DEBUG] Searching YTS...');
     let result = await ipcRenderer.invoke('search-yts', { title, year });
     
-    if (result.success) {
-        const magnet = generateMagnetFromYTS(result.data);
-        if (magnet) {
-            streamMagnet(magnet);
-            return;
+    if (result.success && result.data) {
+        console.log(`[DEBUG] YTS found: ${result.data.torrents ? result.data.torrents.length : 0} torrents`);
+        if (result.data.torrents && result.data.torrents.length > 0) {
+            result.data.torrents.forEach(t => {
+                allTorrents.push({
+                    source: 'YTS',
+                    quality: t.quality || 'Unknown',
+                    size: t.size || 'Unknown',
+                    seeds: t.seeds || 0,
+                    hash: t.hash,
+                    title: result.data.title,
+                    type: t.type || 'web'
+                });
+            });
         }
+    } else {
+        console.log('[DEBUG] YTS search failed:', result.error);
     }
     
     // Try PirateBay as fallback
+    console.log('[DEBUG] Searching ThePirateBay...');
     result = await ipcRenderer.invoke('search-piratebay', { title, year });
     
-    if (result.success) {
-        const magnet = generateMagnetFromTPB(result.data);
-        if (magnet) {
-            streamMagnet(magnet);
-            return;
-        }
+    if (result.success && result.data) {
+        console.log(`[DEBUG] TPB found result with hash: ${result.data.info_hash}`);
+        allTorrents.push({
+            source: 'ThePirateBay',
+            quality: 'Unknown',
+            size: result.data.size || 'Unknown',
+            seeds: result.data.seeders || 0,
+            hash: result.data.info_hash,
+            title: result.data.name,
+            type: 'tpb'
+        });
+    } else {
+        console.log('[DEBUG] TPB search failed:', result.error);
     }
     
-    showToast('No torrents found for: ' + title, 'error');
+    console.log(`[DEBUG] Total torrents found: ${allTorrents.length}`);
+    
+    if (allTorrents.length === 0) {
+        showToast('No torrents found for: ' + title + '. Try a different title or check spelling.', 'error');
+        return;
+    }
+    
+    // Show torrent selection dialog
+    showTorrentSelectionDialog(title, allTorrents);
 }
 
 function generateMagnetFromYTS(movie) {
@@ -370,9 +401,119 @@ function generateMagnetFromTPB(torrent) {
 }
 
 async function streamMovie(title, year, poster, overview) {
+    console.log(`[DEBUG] streamMovie called: ${title} (${year})`);
     addToWatchHistory(title, year, poster, overview);
     await searchAndStream(title, year);
 }
+
+// ===========================
+// Torrent Selection Dialog
+// ===========================
+
+function showTorrentSelectionDialog(movieTitle, torrents) {
+    const modal = document.getElementById('movie-modal');
+    const modalBody = document.getElementById('modal-body');
+    
+    // Sort torrents by quality preference (1080p > 720p > others) and seeds
+    const qualityOrder = { '2160p': 5, '1080p': 4, '720p': 3, '480p': 2 };
+    torrents.sort((a, b) => {
+        const qualityDiff = (qualityOrder[b.quality] || 1) - (qualityOrder[a.quality] || 1);
+        if (qualityDiff !== 0) return qualityDiff;
+        return (b.seeds || 0) - (a.seeds || 0);
+    });
+    
+    let html = `
+        <div class="torrent-selection">
+            <h2>Select Torrent Quality</h2>
+            <p class="subtitle">${movieTitle}</p>
+            <div class="torrent-list">
+    `;
+    
+    torrents.forEach((torrent, index) => {
+        const qualityBadge = torrent.quality !== 'Unknown' 
+            ? `<span class="quality-badge quality-${torrent.quality.toLowerCase()}">${torrent.quality}</span>`
+            : '';
+        
+        html += `
+            <div class="torrent-item" data-index="${index}">
+                <div class="torrent-info">
+                    <div class="torrent-header">
+                        ${qualityBadge}
+                        <span class="source-badge">${torrent.source}</span>
+                    </div>
+                    <div class="torrent-details">
+                        <span class="torrent-size">📦 ${torrent.size}</span>
+                        <span class="torrent-seeds">🌱 ${torrent.seeds} seeds</span>
+                    </div>
+                </div>
+                <button class="btn btn-primary select-torrent-btn" onclick="selectTorrent(${index})">
+                    ▶ Stream This
+                </button>
+            </div>
+        `;
+    });
+    
+    html += `
+            </div>
+            <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+        </div>
+    `;
+    
+    modalBody.innerHTML = html;
+    modal.classList.add('active');
+    
+    // Store torrents globally for selection
+    window.currentTorrents = torrents;
+}
+
+function selectTorrent(index) {
+    const torrents = window.currentTorrents;
+    if (!torrents || !torrents[index]) {
+        showToast('Invalid torrent selection', 'error');
+        return;
+    }
+    
+    const torrent = torrents[index];
+    console.log(`[DEBUG] Selected torrent:`, torrent);
+    
+    // Generate magnet link
+    const magnet = generateMagnetFromTorrent(torrent);
+    
+    if (!magnet) {
+        showToast('Failed to generate magnet link', 'error');
+        return;
+    }
+    
+    console.log(`[DEBUG] Generated magnet:`, magnet.substring(0, 100) + '...');
+    
+    closeModal();
+    streamMagnet(magnet);
+}
+
+function generateMagnetFromTorrent(torrent) {
+    if (!torrent.hash) return null;
+    
+    const trackers = [
+        'udp://open.demonii.com:1337/announce',
+        'udp://tracker.openbittorrent.com:80',
+        'udp://tracker.coppersurfer.tk:6969',
+        'udp://glotorrents.pw:6969/announce',
+        'udp://tracker.opentrackr.org:1337/announce',
+        'udp://exodus.desync.com:6969/announce',
+        'udp://tracker.leechers-paradise.org:6969/announce',
+        'udp://tracker.zer0day.to:1337/announce'
+    ];
+    
+    let magnet = `magnet:?xt=urn:btih:${torrent.hash}&dn=${encodeURIComponent(torrent.title)}`;
+    trackers.forEach(tracker => {
+        magnet += `&tr=${encodeURIComponent(tracker)}`;
+    });
+    
+    return magnet;
+}
+
+// Make function available globally
+window.selectTorrent = selectTorrent;
 
 // ===========================
 // Real Debrid Streaming
@@ -381,58 +522,101 @@ async function streamMovie(title, year, poster, overview) {
 async function streamMagnet(magnet) {
     if (!config.rdApiKey) {
         showToast('Please configure Real Debrid API key in Settings', 'error');
+        console.error('[ERROR] No Real Debrid API key configured');
         return;
     }
     
+    console.log('[DEBUG] Starting Real Debrid streaming process...');
     showToast('Adding magnet to Real Debrid...', 'success');
     
     // Add magnet
+    console.log('[DEBUG] Adding magnet to Real Debrid...');
     const addResult = await ipcRenderer.invoke('rd-add-magnet', {
         apiKey: config.rdApiKey,
         magnet: magnet
     });
     
     if (!addResult.success) {
-        showToast('Failed to add magnet: ' + addResult.error, 'error');
+        const errorMsg = 'Failed to add magnet: ' + (addResult.error || 'Unknown error');
+        console.error('[ERROR]', errorMsg);
+        console.error('[ERROR] Full response:', addResult);
+        showToast(errorMsg + '. Check console for details.', 'error');
         return;
     }
     
+    console.log('[DEBUG] Magnet added successfully. Torrent ID:', addResult.data.id);
     const torrentId = addResult.data.id;
-    showToast('Processing torrent...', 'success');
+    showToast('Processing torrent... (this may take 10-30 seconds)', 'success');
     
     // Wait and get info
     await sleep(2000);
     
-    for (let i = 0; i < 10; i++) {
+    for (let i = 0; i < 15; i++) {
+        console.log(`[DEBUG] Check ${i + 1}/15: Getting torrent info...`);
+        
         const infoResult = await ipcRenderer.invoke('rd-get-info', {
             apiKey: config.rdApiKey,
             torrentId: torrentId
         });
         
         if (!infoResult.success) {
-            showToast('Failed to get torrent info', 'error');
+            const errorMsg = 'Failed to get torrent info: ' + (infoResult.error || 'Unknown error');
+            console.error('[ERROR]', errorMsg);
+            showToast(errorMsg, 'error');
             return;
         }
         
         const info = infoResult.data;
+        console.log(`[DEBUG] Torrent status: ${info.status}`);
         
         if (info.status === 'waiting_files_selection') {
-            // Select all files
+            console.log('[DEBUG] Torrent waiting for file selection...');
+            // Select all video files
             if (info.files && info.files.length > 0) {
-                const fileIds = info.files.map((_, idx) => idx + 1).join(',');
+                console.log(`[DEBUG] Found ${info.files.length} files in torrent`);
                 
-                await ipcRenderer.invoke('rd-select-files', {
+                // Filter for video files (optional: select only largest file)
+                const videoExtensions = ['.mp4', '.mkv', '.avi', '.mov', '.wmv', '.flv', '.webm'];
+                const videoFiles = info.files.filter(f => 
+                    videoExtensions.some(ext => f.path.toLowerCase().endsWith(ext))
+                );
+                
+                let fileIds;
+                if (videoFiles.length > 0) {
+                    // Select only video files
+                    fileIds = videoFiles.map(f => f.id).join(',');
+                    console.log(`[DEBUG] Selecting ${videoFiles.length} video files:`, fileIds);
+                } else {
+                    // Select all files if no video files found
+                    fileIds = info.files.map((_, idx) => idx + 1).join(',');
+                    console.log(`[DEBUG] No video files detected, selecting all files:`, fileIds);
+                }
+                
+                const selectResult = await ipcRenderer.invoke('rd-select-files', {
                     apiKey: config.rdApiKey,
                     torrentId: torrentId,
                     fileIds: fileIds
                 });
                 
-                await sleep(2000);
+                if (!selectResult.success) {
+                    console.error('[ERROR] Failed to select files:', selectResult.error);
+                }
+                
+                await sleep(3000);
                 continue;
             }
         } else if (info.status === 'downloaded' || (info.links && info.links.length > 0)) {
+            console.log('[DEBUG] Torrent is ready! Getting stream link...');
             // Get stream link
+            if (!info.links || info.links.length === 0) {
+                console.error('[ERROR] No links available in downloaded torrent');
+                showToast('Torrent downloaded but no links available', 'error');
+                return;
+            }
+            
             const link = info.links[0];
+            console.log(`[DEBUG] Unrestricting link: ${link}`);
+            
             const unrestrictResult = await ipcRenderer.invoke('rd-unrestrict', {
                 apiKey: config.rdApiKey,
                 link: link
@@ -440,16 +624,39 @@ async function streamMagnet(magnet) {
             
             if (unrestrictResult.success) {
                 const streamUrl = unrestrictResult.data.download;
-                showToast('Starting playback...', 'success');
+                console.log('[DEBUG] Stream URL obtained:', streamUrl.substring(0, 50) + '...');
+                showToast('Starting playback in VLC...', 'success');
                 playInVLC(streamUrl);
                 return;
+            } else {
+                console.error('[ERROR] Failed to unrestrict link:', unrestrictResult.error);
+                showToast('Failed to get stream URL: ' + unrestrictResult.error, 'error');
+                return;
             }
+        } else if (info.status === 'magnet_error') {
+            console.error('[ERROR] Magnet error from Real Debrid');
+            showToast('Real Debrid reported a magnet error. Try a different torrent.', 'error');
+            return;
+        } else if (info.status === 'error') {
+            console.error('[ERROR] Real Debrid error status');
+            showToast('Real Debrid encountered an error processing this torrent.', 'error');
+            return;
+        } else if (info.status === 'virus') {
+            console.error('[ERROR] Torrent flagged as virus');
+            showToast('This torrent was flagged as malicious by Real Debrid.', 'error');
+            return;
+        } else if (info.status === 'dead') {
+            console.error('[ERROR] Torrent is dead (no seeders)');
+            showToast('This torrent has no seeders. Try a different one.', 'error');
+            return;
         }
         
+        console.log(`[DEBUG] Status '${info.status}', waiting 2 seconds...`);
         await sleep(2000);
     }
     
-    showToast('Timeout waiting for torrent to be ready', 'error');
+    console.error('[ERROR] Timeout waiting for torrent (15 attempts)');
+    showToast('Timeout: Torrent took too long to process. Try a different one or check your Real Debrid account.', 'error');
 }
 
 function playInVLC(url) {

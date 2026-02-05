@@ -522,3 +522,123 @@ body {
     margin-bottom: 30px;
     font-size: 32px;
 }
+
+/* Torrent Selection Dialog */
+.torrent-selection {
+    max-width: 800px;
+    margin: 0 auto;
+}
+
+.torrent-selection h2 {
+    font-size: 28px;
+    margin-bottom: 10px;
+    color: #ffffff;
+}
+
+.torrent-selection .subtitle {
+    font-size: 16px;
+    color: #999;
+    margin-bottom: 30px;
+}
+
+.torrent-list {
+    max-height: 500px;
+    overflow-y: auto;
+    margin-bottom: 20px;
+}
+
+.torrent-item {
+    background: #2a2a2a;
+    border: 2px solid #3a3a3a;
+    border-radius: 8px;
+    padding: 20px;
+    margin-bottom: 15px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    transition: all 0.3s ease;
+}
+
+.torrent-item:hover {
+    border-color: #e50914;
+    background: #333;
+    transform: translateX(5px);
+}
+
+.torrent-info {
+    flex: 1;
+}
+
+.torrent-header {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 10px;
+    align-items: center;
+}
+
+.quality-badge {
+    background: #e50914;
+    color: #ffffff;
+    padding: 4px 12px;
+    border-radius: 4px;
+    font-size: 14px;
+    font-weight: bold;
+}
+
+.quality-badge.quality-2160p {
+    background: #9b59b6;
+}
+
+.quality-badge.quality-1080p {
+    background: #e50914;
+}
+
+.quality-badge.quality-720p {
+    background: #3498db;
+}
+
+.quality-badge.quality-480p {
+    background: #95a5a6;
+}
+
+.source-badge {
+    background: #555;
+    color: #ffffff;
+    padding: 4px 10px;
+    border-radius: 4px;
+    font-size: 12px;
+}
+
+.torrent-details {
+    display: flex;
+    gap: 20px;
+    color: #999;
+    font-size: 14px;
+}
+
+.torrent-size,
+.torrent-seeds {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.select-torrent-btn {
+    padding: 10px 20px;
+    white-space: nowrap;
+}
+
+.btn-secondary {
+    background: #555;
+    border: none;
+    padding: 12px 30px;
+    border-radius: 4px;
+    color: #ffffff;
+    font-size: 16px;
+    cursor: pointer;
+    transition: background 0.3s ease;
+}
+
+.btn-secondary:hover {
+    background: #666;
+}
