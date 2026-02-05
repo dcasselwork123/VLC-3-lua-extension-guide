@@ -1,12 +1,42 @@
 const { app, BrowserWindow, ipcMain } = require('electron');
 const path = require('path');
-const Store = require('electron-store');
 const axios = require('axios');
-
-// Initialize config store
-const store = new Store();
+const fs = require('fs');
 
 let mainWindow;
+let configPath;
+
+// Config file management (no external dependencies)
+function getConfigPath() {
+  if (!configPath) {
+    const userDataPath = app.getPath('userData');
+    configPath = path.join(userDataPath, 'config.json');
+  }
+  return configPath;
+}
+
+function loadConfig() {
+  try {
+    const data = fs.readFileSync(getConfigPath(), 'utf8');
+    return JSON.parse(data);
+  } catch (error) {
+    return { rdApiKey: '', tmdbApiKey: '' };
+  }
+}
+
+function saveConfig(config) {
+  try {
+    const dir = path.dirname(getConfigPath());
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+    fs.writeFileSync(getConfigPath(), JSON.stringify(config, null, 2));
+    return true;
+  } catch (error) {
+    console.error('Error saving config:', error);
+    return false;
+  }
+}
 
 function createWindow() {
   mainWindow = new BrowserWindow({
@@ -22,7 +52,8 @@ function createWindow() {
     },
     icon: path.join(__dirname, 'assets', 'icon.png'),
     frame: true,
-    titleBarStyle: 'default'
+    titleBarStyle: 'default',
+    title: 'Real Debrid Streamer'
   });
 
   mainWindow.loadFile('index.html');
@@ -55,26 +86,24 @@ app.on('activate', () => {
 
 // Config Management
 ipcMain.handle('get-config', async () => {
-  return {
-    rdApiKey: store.get('rdApiKey', ''),
-    tmdbApiKey: store.get('tmdbApiKey', '')
-  };
+  return loadConfig();
 });
 
 ipcMain.handle('save-config', async (event, config) => {
-  store.set('rdApiKey', config.rdApiKey);
-  store.set('tmdbApiKey', config.tmdbApiKey);
-  return { success: true };
+  const success = saveConfig(config);
+  return { success };
 });
 
 // Real Debrid API
 ipcMain.handle('rd-test-key', async (event, apiKey) => {
   try {
     const response = await axios.get('https://api.real-debrid.com/rest/1.0/user', {
-      headers: { Authorization: `Bearer ${apiKey}` }
+      headers: { Authorization: `Bearer ${apiKey}` },
+      timeout: 10000
     });
     return { success: true, username: response.data.username };
   } catch (error) {
+    console.error('RD test error:', error.message);
     return { success: false, error: error.message };
   }
 });
@@ -91,11 +120,13 @@ ipcMain.handle('rd-add-magnet', async (event, { apiKey, magnet }) => {
         headers: {
           Authorization: `Bearer ${apiKey}`,
           'Content-Type': 'application/x-www-form-urlencoded'
-        }
+        },
+        timeout: 15000
       }
     );
     return { success: true, data: response.data };
   } catch (error) {
+    console.error('RD add magnet error:', error.response?.data || error.message);
     return { success: false, error: error.response?.data?.error || error.message };
   }
 });
@@ -105,11 +136,13 @@ ipcMain.handle('rd-get-info', async (event, { apiKey, torrentId }) => {
     const response = await axios.get(
       `https://api.real-debrid.com/rest/1.0/torrents/info/${torrentId}`,
       {
-        headers: { Authorization: `Bearer ${apiKey}` }
+        headers: { Authorization: `Bearer ${apiKey}` },
+        timeout: 10000
       }
     );
     return { success: true, data: response.data };
   } catch (error) {
+    console.error('RD get info error:', error.message);
     return { success: false, error: error.message };
   }
 });
@@ -126,11 +159,13 @@ ipcMain.handle('rd-select-files', async (event, { apiKey, torrentId, fileIds }) 
         headers: {
           Authorization: `Bearer ${apiKey}`,
           'Content-Type': 'application/x-www-form-urlencoded'
-        }
+        },
+        timeout: 10000
       }
     );
     return { success: true };
   } catch (error) {
+    console.error('RD select files error:', error.message);
     return { success: false, error: error.message };
   }
 });
@@ -147,11 +182,13 @@ ipcMain.handle('rd-unrestrict', async (event, { apiKey, link }) => {
         headers: {
           Authorization: `Bearer ${apiKey}`,
           'Content-Type': 'application/x-www-form-urlencoded'
-        }
+        },
+        timeout: 15000
       }
     );
     return { success: true, data: response.data };
   } catch (error) {
+    console.error('RD unrestrict error:', error.message);
     return { success: false, error: error.message };
   }
 });
@@ -160,10 +197,12 @@ ipcMain.handle('rd-unrestrict', async (event, { apiKey, link }) => {
 ipcMain.handle('tmdb-popular', async (event, { apiKey, page }) => {
   try {
     const response = await axios.get(
-      `https://api.themoviedb.org/3/movie/popular?api_key=${apiKey}&page=${page || 1}`
+      `https://api.themoviedb.org/3/movie/popular?api_key=${apiKey}&page=${page || 1}`,
+      { timeout: 10000 }
     );
     return { success: true, data: response.data };
   } catch (error) {
+    console.error('TMDB popular error:', error.message);
     return { success: false, error: error.message };
   }
 });
@@ -171,10 +210,12 @@ ipcMain.handle('tmdb-popular', async (event, { apiKey, page }) => {
 ipcMain.handle('tmdb-search', async (event, { apiKey, query }) => {
   try {
     const response = await axios.get(
-      `https://api.themoviedb.org/3/search/movie?api_key=${apiKey}&query=${encodeURIComponent(query)}`
+      `https://api.themoviedb.org/3/search/movie?api_key=${apiKey}&query=${encodeURIComponent(query)}`,
+      { timeout: 10000 }
     );
     return { success: true, data: response.data };
   } catch (error) {
+    console.error('TMDB search error:', error.message);
     return { success: false, error: error.message };
   }
 });
@@ -185,17 +226,30 @@ ipcMain.handle('search-yts', async (event, { title, year }) => {
     let query = title;
     if (year) query += ` ${year}`;
     
+    console.log('Searching YTS for:', query);
+    
     const response = await axios.get(
-      `https://yts.mx/api/v2/list_movies.json?query_term=${encodeURIComponent(query)}&limit=1`
+      `https://yts.mx/api/v2/list_movies.json?query_term=${encodeURIComponent(query)}&limit=5`,
+      { 
+        timeout: 15000,
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+        }
+      }
     );
+    
+    console.log('YTS response status:', response.data.status);
     
     if (response.data.data.movies && response.data.data.movies.length > 0) {
       const movie = response.data.data.movies[0];
+      console.log('Found YTS movie:', movie.title, '- Torrents:', movie.torrents?.length || 0);
       return { success: true, data: movie };
     }
     
+    console.log('No YTS results');
     return { success: false, error: 'No results found' };
   } catch (error) {
+    console.error('YTS search error:', error.message);
     return { success: false, error: error.message };
   }
 });
@@ -205,18 +259,30 @@ ipcMain.handle('search-piratebay', async (event, { title, year }) => {
     let query = title;
     if (year) query += ` ${year}`;
     
+    console.log('Searching PirateBay for:', query);
+    
     const response = await axios.get(
-      `https://apibay.org/q.php?q=${encodeURIComponent(query)}&cat=201`
+      `https://apibay.org/q.php?q=${encodeURIComponent(query)}&cat=201`,
+      { 
+        timeout: 15000,
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+        }
+      }
     );
     
     if (response.data && response.data.length > 0 && response.data[0].name !== 'No results returned') {
+      console.log('Found TPB torrent:', response.data[0].name);
       return { success: true, data: response.data[0] };
     }
     
+    console.log('No TPB results');
     return { success: false, error: 'No results found' };
   } catch (error) {
+    console.error('PirateBay search error:', error.message);
     return { success: false, error: error.message };
   }
 });
 
 console.log('Real Debrid Streamer - Main process started');
+console.log('Config path:', getConfigPath());
