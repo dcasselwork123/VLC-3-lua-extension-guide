@@ -226,13 +226,13 @@ function createMovieCard(movie) {
     
     const posterPath = movie.poster_path 
         ? `https://image.tmdb.org/t/p/w500${movie.poster_path}`
-        : 'https://via.placeholder.com/200x300/333/fff?text=No+Poster';
+        : 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjMwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMjAwIiBoZWlnaHQ9IjMwMCIgZmlsbD0iIzMzMyIvPjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iMTYiIGZpbGw9IiNmZmYiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGR5PSIuM2VtIj5ObyBQb3N0ZXI8L3RleHQ+PC9zdmc+';
     
     const year = movie.release_date ? movie.release_date.substring(0, 4) : 'N/A';
     const rating = movie.vote_average ? movie.vote_average.toFixed(1) : 'N/A';
     
     card.innerHTML = `
-        <img src="${posterPath}" alt="${movie.title}" class="movie-poster" onerror="this.src='https://via.placeholder.com/200x300/333/fff?text=No+Poster'">
+        <img src="${posterPath}" alt="${movie.title}" class="movie-poster" onerror="this.onerror=null; this.src='data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjMwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMjAwIiBoZWlnaHQ9IjMwMCIgZmlsbD0iIzMzMyIvPjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iMTYiIGZpbGw9IiNmZmYiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGR5PSIuM2VtIj5ObyBQb3N0ZXI8L3RleHQ+PC9zdmc+';">
         <div class="movie-info">
             <div class="movie-title" title="${movie.title}">${movie.title}</div>
             <div class="movie-meta">
@@ -263,14 +263,14 @@ function showMovieDetails(movie) {
     
     const posterPath = movie.poster_path 
         ? `https://image.tmdb.org/t/p/w500${movie.poster_path}`
-        : 'https://via.placeholder.com/300x450/333/fff?text=No+Poster';
+        : 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzAwIiBoZWlnaHQ9IjQ1MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMzAwIiBoZWlnaHQ9IjQ1MCIgZmlsbD0iIzMzMyIvPjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iMTgiIGZpbGw9IiNmZmYiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGR5PSIuM2VtIj5ObyBQb3N0ZXI8L3RleHQ+PC9zdmc+';
     
     const year = movie.release_date ? movie.release_date.substring(0, 4) : 'N/A';
     const rating = movie.vote_average ? movie.vote_average.toFixed(1) : 'N/A';
     
     modalBody.innerHTML = `
         <div class="modal-header">
-            <img src="${posterPath}" alt="${movie.title}" class="modal-poster" onerror="this.src='https://via.placeholder.com/300x450/333/fff?text=No+Poster'">
+            <img src="${posterPath}" alt="${movie.title}" class="modal-poster" onerror="this.onerror=null; this.src='data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzAwIiBoZWlnaHQ9IjQ1MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMzAwIiBoZWlnaHQ9IjQ1MCIgZmlsbD0iIzMzMyIvPjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iMTgiIGZpbGw9IiNmZmYiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGR5PSIuM2VtIj5ObyBQb3N0ZXI8L3RleHQ+PC9zdmc+';">
             <div class="modal-info">
                 <h2 class="modal-title">${movie.title}</h2>
                 <div class="modal-meta">
@@ -768,10 +768,10 @@ function displayContinueWatching() {
         const card = document.createElement('div');
         card.className = 'movie-card';
         
-        const posterUrl = item.poster || 'https://via.placeholder.com/200x300/333/fff?text=No+Poster';
+        const posterUrl = item.poster || 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjMwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMjAwIiBoZWlnaHQ9IjMwMCIgZmlsbD0iIzMzMyIvPjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iMTYiIGZpbGw9IiNmZmYiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGR5PSIuM2VtIj5ObyBQb3N0ZXI8L3RleHQ+PC9zdmc+';
         
         card.innerHTML = `
-            <img src="${posterUrl}" alt="${item.title}" class="movie-poster" onerror="this.src='https://via.placeholder.com/200x300/333/fff?text=No+Poster'">
+            <img src="${posterUrl}" alt="${item.title}" class="movie-poster" onerror="this.onerror=null; this.src='data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjMwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMjAwIiBoZWlnaHQ9IjMwMCIgZmlsbD0iIzMzMyIvPjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iMTYiIGZpbGw9IiNmZmYiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGR5PSIuM2VtIj5ObyBQb3N0ZXI8L3RleHQ+PC9zdmc+';">
             <div class="movie-info">
                 <div class="movie-title" title="${item.title}">${item.title}</div>
                 <div class="movie-meta">
