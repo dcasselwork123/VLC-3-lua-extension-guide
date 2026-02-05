@@ -333,16 +333,32 @@ async function searchAndStream(title, year = null) {
     result = await ipcRenderer.invoke('search-piratebay', { title, year });
     
     if (result.success && result.data) {
-        console.log(`[DEBUG] TPB found result with hash: ${result.data.info_hash}`);
-        allTorrents.push({
-            source: 'ThePirateBay',
-            quality: 'Unknown',
-            size: result.data.size || 'Unknown',
-            seeds: result.data.seeders || 0,
-            hash: result.data.info_hash,
-            title: result.data.name,
-            type: 'tpb'
-        });
+        console.log(`[DEBUG] TPB raw data:`, result.data);
+        const tpbData = result.data;
+        
+        // Format size from bytes to readable format
+        const formatSize = (bytes) => {
+            if (!bytes || bytes === 0) return 'Unknown';
+            const gb = (bytes / (1024 * 1024 * 1024)).toFixed(2);
+            if (gb >= 1) return `${gb} GB`;
+            const mb = (bytes / (1024 * 1024)).toFixed(2);
+            return `${mb} MB`;
+        };
+        
+        if (tpbData.info_hash) {
+            console.log(`[DEBUG] TPB found result with hash: ${tpbData.info_hash}`);
+            allTorrents.push({
+                source: 'ThePirateBay',
+                quality: 'Unknown',
+                size: formatSize(parseInt(tpbData.size)),
+                seeds: parseInt(tpbData.seeders) || 0,
+                hash: tpbData.info_hash,
+                title: tpbData.name || title,
+                type: 'tpb'
+            });
+        } else {
+            console.log('[DEBUG] TPB result missing info_hash');
+        }
     } else {
         console.log('[DEBUG] TPB search failed:', result.error);
     }

@@ -272,8 +272,15 @@ ipcMain.handle('search-piratebay', async (event, { title, year }) => {
     );
     
     if (response.data && response.data.length > 0 && response.data[0].name !== 'No results returned') {
-      console.log('Found TPB torrent:', response.data[0].name);
-      return { success: true, data: response.data[0] };
+      const torrent = response.data[0];
+      console.log('Found TPB torrent:', torrent.name);
+      console.log('TPB data:', JSON.stringify({
+        info_hash: torrent.info_hash,
+        size: torrent.size,
+        seeders: torrent.seeders,
+        name: torrent.name
+      }));
+      return { success: true, data: torrent };
     }
     
     console.log('No TPB results');
