@@ -14,6 +14,31 @@ let config = {
 let currentPage = 1;
 let currentMovies = [];
 let watchHistory = [];
+let currentContentType = 'movie'; // 'movie' or 'tv'
+let currentGenre = ''; // genre ID
+let currentSort = 'popularity.desc';
+
+// Genre mappings
+const movieGenres = {
+    '28': 'Action',
+    '12': 'Adventure',
+    '35': 'Comedy',
+    '80': 'Crime',
+    '18': 'Drama',
+    '14': 'Fantasy',
+    '27': 'Horror',
+    '10749': 'Romance',
+    '878': 'Sci-Fi',
+    '53': 'Thriller'
+};
+
+const tvGenres = {
+    '10759': 'Action & Adventure',
+    '35': 'Comedy',
+    '80': 'Crime',
+    '18': 'Drama',
+    '10765': 'Sci-Fi & Fantasy'
+};
 
 // ===========================
 // Initialization
@@ -94,8 +119,27 @@ function switchView(viewName) {
     
     // Load view-specific content
     if (viewName === 'browse') {
-        loadPopularMovies(currentPage);
+        loadFilteredContent();
+    } else if (viewName === 'home') {
+        displayContinueWatching();
     }
+}
+
+// Update genre select based on content type
+function updateGenreSelect(contentType) {
+    const genreSelect = document.getElementById('genre-select');
+    const genres = contentType === 'movie' ? movieGenres : tvGenres;
+    
+    genreSelect.innerHTML = '<option value="">All Genres</option>';
+    
+    Object.entries(genres).forEach(([id, name]) => {
+        const option = document.createElement('option');
+        option.value = id;
+        option.textContent = name;
+        genreSelect.appendChild(option);
+    });
+    
+    currentGenre = ''; // Reset genre when switching content type
 }
 
 // ===========================
@@ -107,27 +151,84 @@ function setupEventListeners() {
     document.getElementById('save-settings-btn').addEventListener('click', saveConfig);
     document.getElementById('test-connection-btn').addEventListener('click', testConnection);
     
-    // Quick stream
-    document.getElementById('stream-magnet-btn').addEventListener('click', () => {
-        const magnet = document.getElementById('magnet-input').value;
-        if (magnet) {
-            streamMagnet(magnet);
+    // Home search
+    document.getElementById('home-search-btn').addEventListener('click', () => {
+        const query = document.getElementById('home-search-input').value.trim();
+        if (query) {
+            document.getElementById('search-input').value = query;
+            switchView('search');
+            performSearch();
         } else {
-            showToast('Please enter a magnet link', 'error');
+            showToast('Please enter a search term', 'error');
         }
+    });
+    
+    document.getElementById('home-search-input').addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') {
+            const query = document.getElementById('home-search-input').value.trim();
+            if (query) {
+                document.getElementById('search-input').value = query;
+                switchView('search');
+                performSearch();
+            }
+        }
+    });
+    
+    // Genre dropdown navigation
+    document.querySelectorAll('.dropdown-item').forEach(item => {
+        item.addEventListener('click', (e) => {
+            e.preventDefault();
+            const type = item.dataset.type; // 'movie' or 'tv'
+            const genre = item.dataset.genre;
+            
+            currentContentType = type;
+            currentGenre = genre;
+            currentPage = 1;
+            
+            // Switch to browse view
+            switchView('browse');
+            
+            // Update filters UI
+            document.getElementById('content-type-select').value = type;
+            updateGenreSelect(type);
+            document.getElementById('genre-select').value = genre;
+            
+            // Load content
+            loadFilteredContent();
+        });
+    });
+    
+    // Browse filters
+    document.getElementById('content-type-select').addEventListener('change', (e) => {
+        currentContentType = e.target.value;
+        currentPage = 1;
+        updateGenreSelect(currentContentType);
+        loadFilteredContent();
+    });
+    
+    document.getElementById('genre-select').addEventListener('change', (e) => {
+        currentGenre = e.target.value;
+        currentPage = 1;
+        loadFilteredContent();
+    });
+    
+    document.getElementById('sort-select').addEventListener('change', (e) => {
+        currentSort = e.target.value;
+        currentPage = 1;
+        loadFilteredContent();
     });
     
     // Browse pagination
     document.getElementById('prev-page-btn').addEventListener('click', () => {
         if (currentPage > 1) {
             currentPage--;
-            loadPopularMovies(currentPage);
+            loadFilteredContent();
         }
     });
     
     document.getElementById('next-page-btn').addEventListener('click', () => {
         currentPage++;
-        loadPopularMovies(currentPage);
+        loadFilteredContent();
     });
     
     // Search
@@ -145,13 +246,16 @@ function setupEventListeners() {
             closeModal();
         }
     });
+    
+    // Initialize genre select
+    updateGenreSelect('movie');
 }
 
 // ===========================
 // TMDB Functions
 // ===========================
 
-async function loadPopularMovies(page) {
+async function loadFilteredContent() {
     if (!config.tmdbApiKey) {
         showToast('Please configure TMDB API key in Settings', 'error');
         return;
@@ -159,9 +263,12 @@ async function loadPopularMovies(page) {
     
     showLoading(true);
     
-    const result = await ipcRenderer.invoke('tmdb-popular', {
+    const result = await ipcRenderer.invoke('tmdb-discover', {
         apiKey: config.tmdbApiKey,
-        page: page
+        contentType: currentContentType,
+        genre: currentGenre,
+        sort: currentSort,
+        page: currentPage
     });
     
     showLoading(false);
@@ -169,10 +276,27 @@ async function loadPopularMovies(page) {
     if (result.success) {
         currentMovies = result.data.results;
         displayMovies(currentMovies);
-        document.getElementById('page-info').textContent = `Page ${page}`;
+        document.getElementById('page-info').textContent = `Page ${currentPage}`;
+        
+        // Update browse title
+        let title = currentContentType === 'tv' ? 'TV Shows' : 'Movies';
+        if (currentGenre) {
+            const genres = currentContentType === 'movie' ? movieGenres : tvGenres;
+            title = `${genres[currentGenre]} ${title}`;
+        }
+        document.getElementById('browse-title').textContent = title;
     } else {
-        showToast('Failed to load movies: ' + result.error, 'error');
+        showToast('Failed to load content: ' + result.error, 'error');
     }
+}
+
+async function loadPopularMovies(page) {
+    // Legacy function - now redirects to filtered content
+    currentPage = page;
+    currentContentType = 'movie';
+    currentGenre = '';
+    currentSort = 'popularity.desc';
+    await loadFilteredContent();
 }
 
 async function performSearch() {
@@ -228,13 +352,16 @@ function createMovieCard(movie) {
         ? `https://image.tmdb.org/t/p/w500${movie.poster_path}`
         : 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjMwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMjAwIiBoZWlnaHQ9IjMwMCIgZmlsbD0iIzMzMyIvPjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iMTYiIGZpbGw9IiNmZmYiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGR5PSIuM2VtIj5ObyBQb3N0ZXI8L3RleHQ+PC9zdmc+';
     
-    const year = movie.release_date ? movie.release_date.substring(0, 4) : 'N/A';
+    // Handle both movies (title, release_date) and TV shows (name, first_air_date)
+    const title = movie.title || movie.name || 'Unknown';
+    const date = movie.release_date || movie.first_air_date;
+    const year = date ? date.substring(0, 4) : 'N/A';
     const rating = movie.vote_average ? movie.vote_average.toFixed(1) : 'N/A';
     
     card.innerHTML = `
-        <img src="${posterPath}" alt="${movie.title}" class="movie-poster" onerror="this.onerror=null; this.src='data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjMwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMjAwIiBoZWlnaHQ9IjMwMCIgZmlsbD0iIzMzMyIvPjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iMTYiIGZpbGw9IiNmZmYiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGR5PSIuM2VtIj5ObyBQb3N0ZXI8L3RleHQ+PC9zdmc+';">
+        <img src="${posterPath}" alt="${title}" class="movie-poster" onerror="this.onerror=null; this.src='data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjMwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMjAwIiBoZWlnaHQ9IjMwMCIgZmlsbD0iIzMzMyIvPjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iMTYiIGZpbGw9IiNmZmYiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGR5PSIuM2VtIj5ObyBQb3N0ZXI8L3RleHQ+PC9zdmc+';">
         <div class="movie-info">
-            <div class="movie-title" title="${movie.title}">${movie.title}</div>
+            <div class="movie-title" title="${title}">${title}</div>
             <div class="movie-meta">
                 <span>${year}</span>
                 <span class="movie-rating">★ ${rating}</span>
@@ -265,14 +392,17 @@ function showMovieDetails(movie) {
         ? `https://image.tmdb.org/t/p/w500${movie.poster_path}`
         : 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzAwIiBoZWlnaHQ9IjQ1MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMzAwIiBoZWlnaHQ9IjQ1MCIgZmlsbD0iIzMzMyIvPjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iMTgiIGZpbGw9IiNmZmYiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGR5PSIuM2VtIj5ObyBQb3N0ZXI8L3RleHQ+PC9zdmc+';
     
-    const year = movie.release_date ? movie.release_date.substring(0, 4) : 'N/A';
+    // Handle both movies and TV shows
+    const title = movie.title || movie.name || 'Unknown';
+    const date = movie.release_date || movie.first_air_date;
+    const year = date ? date.substring(0, 4) : 'N/A';
     const rating = movie.vote_average ? movie.vote_average.toFixed(1) : 'N/A';
     
     modalBody.innerHTML = `
         <div class="modal-header">
-            <img src="${posterPath}" alt="${movie.title}" class="modal-poster" onerror="this.onerror=null; this.src='data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzAwIiBoZWlnaHQ9IjQ1MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMzAwIiBoZWlnaHQ9IjQ1MCIgZmlsbD0iIzMzMyIvPjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iMTgiIGZpbGw9IiNmZmYiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGR5PSIuM2VtIj5ObyBQb3N0ZXI8L3RleHQ+PC9zdmc+';">
+            <img src="${posterPath}" alt="${title}" class="modal-poster" onerror="this.onerror=null; this.src='data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzAwIiBoZWlnaHQ9IjQ1MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMzAwIiBoZWlnaHQ9IjQ1MCIgZmlsbD0iIzMzMyIvPjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iMTgiIGZpbGw9IiNmZmYiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGR5PSIuM2VtIj5ObyBQb3N0ZXI8L3RleHQ+PC9zdmc+';">
             <div class="modal-info">
-                <h2 class="modal-title">${movie.title}</h2>
+                <h2 class="modal-title">${title}</h2>
                 <div class="modal-meta">
                     ${year} • <span class="modal-rating">★ ${rating}/10</span>
                 </div>
@@ -442,7 +572,8 @@ function generateMagnetFromTPB(torrent) {
 // ===========================
 
 async function streamMovieWithTorrentio(movie) {
-    console.log(`[DEBUG] streamMovieWithTorrentio called: ${movie.title} (ID: ${movie.id})`);
+    const title = movie.title || movie.name || 'Unknown';
+    console.log(`[DEBUG] streamMovieWithTorrentio called: ${title} (ID: ${movie.id})`);
     
     if (!config.rdApiKey) {
         showToast('Please configure Real Debrid API key in Settings', 'error');
@@ -458,8 +589,9 @@ async function streamMovieWithTorrentio(movie) {
     const posterPath = movie.poster_path 
         ? `https://image.tmdb.org/t/p/w500${movie.poster_path}`
         : null;
-    const year = movie.release_date ? movie.release_date.substring(0, 4) : null;
-    addToWatchHistory(movie.title, year, posterPath, movie.overview);
+    const date = movie.release_date || movie.first_air_date;
+    const year = date ? date.substring(0, 4) : null;
+    addToWatchHistory(title, year, posterPath, movie.overview);
     
     showToast('Getting IMDb ID...', 'success');
     

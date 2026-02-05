@@ -220,6 +220,26 @@ ipcMain.handle('tmdb-search', async (event, { apiKey, query }) => {
   }
 });
 
+// TMDB Discover with genre/content type filtering
+ipcMain.handle('tmdb-discover', async (event, { apiKey, contentType, genre, sort, page }) => {
+  try {
+    const endpoint = contentType === 'tv' ? 'tv' : 'movie';
+    let url = `https://api.themoviedb.org/3/discover/${endpoint}?api_key=${apiKey}&page=${page || 1}&sort_by=${sort || 'popularity.desc'}`;
+    
+    if (genre) {
+      url += `&with_genres=${genre}`;
+    }
+    
+    console.log(`[TMDB] Discover ${endpoint} - Genre: ${genre || 'All'}, Sort: ${sort}, Page: ${page}`);
+    
+    const response = await axios.get(url, { timeout: 10000 });
+    return { success: true, data: response.data };
+  } catch (error) {
+    console.error('TMDB discover error:', error.message);
+    return { success: false, error: error.message };
+  }
+});
+
 // Torrent Search APIs
 ipcMain.handle('search-yts', async (event, { title, year }) => {
   try {

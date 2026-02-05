@@ -13,7 +13,32 @@
             <h1 class="logo">🏰 CasselFlix</h1>
             <nav class="nav">
                 <a href="#" class="nav-link active" data-view="home">Home</a>
-                <a href="#" class="nav-link" data-view="browse">Browse</a>
+                <div class="nav-dropdown">
+                    <a href="#" class="nav-link" data-view="browse">Browse ▾</a>
+                    <div class="dropdown-menu">
+                        <div class="dropdown-section">
+                            <div class="dropdown-header">Movies</div>
+                            <a href="#" class="dropdown-item" data-type="movie" data-genre="28">Action</a>
+                            <a href="#" class="dropdown-item" data-type="movie" data-genre="12">Adventure</a>
+                            <a href="#" class="dropdown-item" data-type="movie" data-genre="35">Comedy</a>
+                            <a href="#" class="dropdown-item" data-type="movie" data-genre="80">Crime</a>
+                            <a href="#" class="dropdown-item" data-type="movie" data-genre="18">Drama</a>
+                            <a href="#" class="dropdown-item" data-type="movie" data-genre="14">Fantasy</a>
+                            <a href="#" class="dropdown-item" data-type="movie" data-genre="27">Horror</a>
+                            <a href="#" class="dropdown-item" data-type="movie" data-genre="10749">Romance</a>
+                            <a href="#" class="dropdown-item" data-type="movie" data-genre="878">Sci-Fi</a>
+                            <a href="#" class="dropdown-item" data-type="movie" data-genre="53">Thriller</a>
+                        </div>
+                        <div class="dropdown-section">
+                            <div class="dropdown-header">TV Shows</div>
+                            <a href="#" class="dropdown-item" data-type="tv" data-genre="10759">Action & Adventure</a>
+                            <a href="#" class="dropdown-item" data-type="tv" data-genre="35">Comedy</a>
+                            <a href="#" class="dropdown-item" data-type="tv" data-genre="80">Crime</a>
+                            <a href="#" class="dropdown-item" data-type="tv" data-genre="18">Drama</a>
+                            <a href="#" class="dropdown-item" data-type="tv" data-genre="10765">Sci-Fi & Fantasy</a>
+                        </div>
+                    </div>
+                </div>
                 <a href="#" class="nav-link" data-view="search">Search</a>
                 <a href="#" class="nav-link" data-view="settings">Settings</a>
             </nav>
@@ -29,11 +54,11 @@
                 <p class="hero-subtitle">Your Personal Castle of Endless Entertainment</p>
             </section>
 
-            <section class="quick-stream">
-                <h3>Quick Stream</h3>
+            <section class="quick-search">
+                <h3>Quick Search</h3>
                 <div class="input-group">
-                    <input type="text" id="magnet-input" placeholder="Paste magnet link here..." class="input-large">
-                    <button id="stream-magnet-btn" class="btn btn-primary">▶ Stream</button>
+                    <input type="text" id="home-search-input" placeholder="Search for movies or TV shows..." class="input-large">
+                    <button id="home-search-btn" class="btn btn-primary">🔍 Search</button>
                 </div>
             </section>
 
@@ -46,7 +71,22 @@
         <!-- Browse View -->
         <div id="browse-view" class="view">
             <div class="browse-header">
-                <h2>Popular Movies</h2>
+                <h2 id="browse-title">Popular Movies</h2>
+                <div class="browse-filters">
+                    <select id="content-type-select" class="filter-select">
+                        <option value="movie">Movies</option>
+                        <option value="tv">TV Shows</option>
+                    </select>
+                    <select id="genre-select" class="filter-select">
+                        <option value="">All Genres</option>
+                    </select>
+                    <select id="sort-select" class="filter-select">
+                        <option value="popularity.desc">Most Popular</option>
+                        <option value="vote_average.desc">Highest Rated</option>
+                        <option value="release_date.desc">Newest</option>
+                        <option value="revenue.desc">Top Grossing</option>
+                    </select>
+                </div>
                 <div class="page-controls">
                     <button id="prev-page-btn" class="btn btn-secondary">◀ Previous</button>
                     <span id="page-info" class="page-info">Page 1</span>
@@ -56,7 +96,7 @@
             
             <div id="loading-indicator" class="loading" style="display: none;">
                 <div class="spinner"></div>
-                <p>Loading movies...</p>
+                <p>Loading...</p>
             </div>
             
             <div id="movies-grid" class="movie-grid"></div>
