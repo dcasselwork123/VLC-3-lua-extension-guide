@@ -292,5 +292,80 @@ ipcMain.handle('search-piratebay', async (event, { title, year }) => {
   }
 });
 
-console.log('Real Debrid Streamer - Main process started');
+// Real Debrid Instant Availability Check
+ipcMain.handle('rd-check-availability', async (event, { apiKey, hashes }) => {
+  try {
+    // RD instant availability endpoint: POST /torrents/instantAvailability/{hash}
+    // Can check multiple hashes at once: hash1/hash2/hash3
+    const hashString = hashes.slice(0, 100).join('/');
+    console.log(`Checking RD availability for ${hashes.length} torrents...`);
+    
+    const response = await axios.get(
+      `https://api.real-debrid.com/rest/1.0/torrents/instantAvailability/${hashString}`,
+      {
+        headers: {
+          'Authorization': `Bearer ${apiKey}`
+        },
+        timeout: 15000
+      }
+    );
+    
+    console.log('RD availability check complete');
+    return { success: true, data: response.data };
+  } catch (error) {
+    console.error('RD availability error:', error.message);
+    return { success: false, error: error.message };
+  }
+});
+
+// Search via Torrentio-like aggregator (using IMDb ID)
+ipcMain.handle('search-torrentio', async (event, { imdbId }) => {
+  try {
+    console.log('Searching Torrentio for IMDb:', imdbId);
+    
+    // Torrentio public API endpoint
+    const response = await axios.get(
+      `https://torrentio.strem.fun/stream/movie/${imdbId}.json`,
+      {
+        timeout: 15000,
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+        }
+      }
+    );
+    
+    if (response.data && response.data.streams) {
+      console.log(`Found ${response.data.streams.length} Torrentio streams`);
+      return { success: true, data: response.data.streams };
+    }
+    
+    console.log('No Torrentio results');
+    return { success: false, error: 'No streams found' };
+  } catch (error) {
+    console.error('Torrentio search error:', error.message);
+    return { success: false, error: error.message };
+  }
+});
+
+// Get IMDb ID from TMDB
+ipcMain.handle('tmdb-get-imdb', async (event, { apiKey, tmdbId }) => {
+  try {
+    const response = await axios.get(
+      `https://api.themoviedb.org/3/movie/${tmdbId}/external_ids?api_key=${apiKey}`,
+      { timeout: 10000 }
+    );
+    
+    if (response.data && response.data.imdb_id) {
+      console.log('Found IMDb ID:', response.data.imdb_id);
+      return { success: true, imdbId: response.data.imdb_id };
+    }
+    
+    return { success: false, error: 'No IMDb ID found' };
+  } catch (error) {
+    console.error('TMDB IMDb lookup error:', error.message);
+    return { success: false, error: error.message };
+  }
+});
+
+console.log('CasselFlix - Main process started');
 console.log('Config path:', getConfigPath());

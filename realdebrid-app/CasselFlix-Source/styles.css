@@ -644,3 +644,45 @@ body {
 .btn-secondary:hover {
     background: #666;
 }
+
+/* Cached/Uncached Stream Badges */
+.cached-badge {
+    background: #2ecc71;
+    color: #ffffff;
+    padding: 4px 12px;
+    border-radius: 4px;
+    font-size: 13px;
+    font-weight: bold;
+}
+
+.uncached-badge {
+    background: #f39c12;
+    color: #ffffff;
+    padding: 4px 12px;
+    border-radius: 4px;
+    font-size: 13px;
+    font-weight: bold;
+}
+
+.cached-item {
+    border-color: #2ecc71;
+    background: rgba(46, 204, 113, 0.05);
+}
+
+.stream-info-box {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 8px;
+    padding: 15px;
+    margin-bottom: 20px;
+    font-size: 14px;
+    line-height: 1.6;
+}
+
+.stream-info-box p {
+    margin: 5px 0;
+}
+
+.stream-info-box strong {
+    color: #d4af37;
+}

@@ -246,7 +246,7 @@ function createMovieCard(movie) {
     // Click handler
     card.querySelector('.stream-btn').addEventListener('click', (e) => {
         e.stopPropagation();
-        streamMovie(movie.title, year, posterPath, movie.overview);
+        streamMovieWithTorrentio(movie);
     });
     
     // Show details on card click
@@ -277,7 +277,7 @@ function showMovieDetails(movie) {
                     ${year} • <span class="modal-rating">★ ${rating}/10</span>
                 </div>
                 <p class="modal-overview">${movie.overview || 'No description available'}</p>
-                <button class="btn btn-primary" onclick="streamMovie('${movie.title}', '${year}', '${posterPath}', '${movie.overview}'); closeModal();">
+                <button class="btn btn-primary" id="modal-stream-btn">
                     ▶ Stream Now
                 </button>
             </div>
@@ -285,6 +285,12 @@ function showMovieDetails(movie) {
     `;
     
     modal.classList.add('active');
+    
+    // Attach event listener after modal is created
+    document.getElementById('modal-stream-btn').addEventListener('click', () => {
+        closeModal();
+        streamMovieWithTorrentio(movie);
+    });
 }
 
 function closeModal() {
@@ -430,6 +436,237 @@ function generateMagnetFromTPB(torrent) {
     
     return magnet;
 }
+
+// ===========================
+// Torrentio + Real Debrid Streaming (Stremio-style)
+// ===========================
+
+async function streamMovieWithTorrentio(movie) {
+    console.log(`[DEBUG] streamMovieWithTorrentio called: ${movie.title} (ID: ${movie.id})`);
+    
+    if (!config.rdApiKey) {
+        showToast('Please configure Real Debrid API key in Settings', 'error');
+        return;
+    }
+    
+    if (!config.tmdbApiKey) {
+        showToast('Please configure TMDB API key in Settings', 'error');
+        return;
+    }
+    
+    // Add to watch history
+    const posterPath = movie.poster_path 
+        ? `https://image.tmdb.org/t/p/w500${movie.poster_path}`
+        : null;
+    const year = movie.release_date ? movie.release_date.substring(0, 4) : null;
+    addToWatchHistory(movie.title, year, posterPath, movie.overview);
+    
+    showToast('Getting IMDb ID...', 'success');
+    
+    // Step 1: Get IMDb ID from TMDB
+    const imdbResult = await ipcRenderer.invoke('tmdb-get-imdb', {
+        apiKey: config.tmdbApiKey,
+        tmdbId: movie.id
+    });
+    
+    if (!imdbResult.success) {
+        showToast('Failed to get IMDb ID: ' + imdbResult.error, 'error');
+        return;
+    }
+    
+    const imdbId = imdbResult.imdbId;
+    console.log(`[DEBUG] Got IMDb ID: ${imdbId}`);
+    
+    showToast('Searching Torrentio (Stremio database)...', 'success');
+    
+    // Step 2: Search Torrentio for streams
+    const torrentioResult = await ipcRenderer.invoke('search-torrentio', { imdbId });
+    
+    if (!torrentioResult.success || !torrentioResult.data || torrentioResult.data.length === 0) {
+        showToast('No streams found on Torrentio. Try a different movie.', 'error');
+        console.log('[DEBUG] Torrentio returned no streams');
+        return;
+    }
+    
+    console.log(`[DEBUG] Torrentio found ${torrentioResult.data.length} streams`);
+    
+    // Parse Torrentio streams
+    const parsedStreams = torrentioResult.data.map(stream => {
+        // Torrentio format: "quality\nsource\nseeds"
+        const lines = (stream.title || '').split('\n');
+        const quality = lines[0] || 'Unknown';
+        const source = lines[1] || 'Unknown';
+        const seedsMatch = lines[2]?.match(/👤 (\\d+)/);
+        const seeds = seedsMatch ? parseInt(seedsMatch[1]) : 0;
+        
+        // Extract hash from infoHash or URL
+        let hash = stream.infoHash;
+        if (!hash && stream.url) {
+            const hashMatch = stream.url.match(/btih:([a-fA-F0-9]{40})/);
+            if (hashMatch) hash = hashMatch[1];
+        }
+        
+        return {
+            hash: hash,
+            quality: quality,
+            source: source,
+            seeds: seeds,
+            title: stream.name || stream.title,
+            raw: stream
+        };
+    }).filter(s => s.hash); // Only keep streams with valid hash
+    
+    console.log(`[DEBUG] Parsed ${parsedStreams.length} valid streams with hashes`);
+    
+    if (parsedStreams.length === 0) {
+        showToast('No valid torrent hashes found', 'error');
+        return;
+    }
+    
+    showToast('Checking Real Debrid cache...', 'success');
+    
+    // Step 3: Check RD instant availability
+    const hashes = parsedStreams.map(s => s.hash.toLowerCase());
+    const availResult = await ipcRenderer.invoke('rd-check-availability', {
+        apiKey: config.rdApiKey,
+        hashes: hashes
+    });
+    
+    if (!availResult.success) {
+        console.log('[DEBUG] RD availability check failed, showing all streams anyway');
+    }
+    
+    // Mark cached streams
+    const availData = availResult.data || {};
+    parsedStreams.forEach(stream => {
+        const hashData = availData[stream.hash.toLowerCase()];
+        stream.cached = hashData && Object.keys(hashData).length > 0;
+        stream.cachedFiles = hashData || {};
+    });
+    
+    // Prioritize cached streams
+    const cachedStreams = parsedStreams.filter(s => s.cached);
+    const uncachedStreams = parsedStreams.filter(s => !s.cached);
+    
+    console.log(`[DEBUG] Cached streams: ${cachedStreams.length}, Uncached: ${uncachedStreams.length}`);
+    
+    const allStreams = [...cachedStreams, ...uncachedStreams];
+    
+    if (allStreams.length === 0) {
+        showToast('No streams available', 'error');
+        return;
+    }
+    
+    // Show stream selection dialog
+    showStreamSelectionDialog(movie.title, allStreams);
+}
+
+function showStreamSelectionDialog(movieTitle, streams) {
+    const modal = document.getElementById('movie-modal');
+    const modalBody = document.getElementById('modal-body');
+    
+    // Sort streams: cached first, then by quality and seeds
+    const qualityOrder = { '4K': 5, '2160p': 5, '1080p': 4, '720p': 3, '480p': 2 };
+    streams.sort((a, b) => {
+        if (a.cached !== b.cached) return a.cached ? -1 : 1;
+        const qualityA = qualityOrder[a.quality] || 0;
+        const qualityB = qualityOrder[b.quality] || 0;
+        if (qualityA !== qualityB) return qualityB - qualityA;
+        return b.seeds - a.seeds;
+    });
+    
+    let html = `
+        <div class="torrent-selection">
+            <h2>Select Stream</h2>
+            <p class="subtitle">${movieTitle}</p>
+            <div class="stream-info-box">
+                <p>✨ <strong>Cached</strong> = Instant playback (already on Real Debrid)</p>
+                <p>⏳ <strong>Uncached</strong> = Will download first (may take time)</p>
+            </div>
+            <div class="torrent-list">
+    `;
+    
+    streams.forEach((stream, index) => {
+        const cachedBadge = stream.cached 
+            ? '<span class="cached-badge">✨ CACHED</span>'
+            : '<span class="uncached-badge">⏳ Uncached</span>';
+        
+        const qualityBadge = stream.quality 
+            ? `<span class="quality-badge quality-${stream.quality.toLowerCase().replace(/[^a-z0-9]/g, '')}">${stream.quality}</span>`
+            : '';
+        
+        html += `
+            <div class="torrent-item ${stream.cached ? 'cached-item' : ''}" data-index="${index}">
+                <div class="torrent-info">
+                    <div class="torrent-header">
+                        ${cachedBadge}
+                        ${qualityBadge}
+                        <span class="source-badge">${stream.source}</span>
+                    </div>
+                    <div class="torrent-details">
+                        <span class="torrent-seeds">👤 ${stream.seeds} peers</span>
+                    </div>
+                </div>
+                <button class="btn btn-primary select-torrent-btn" onclick="selectStream(${index})">
+                    ▶ Stream This
+                </button>
+            </div>
+        `;
+    });
+    
+    html += `
+            </div>
+            <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+        </div>
+    `;
+    
+    modalBody.innerHTML = html;
+    modal.classList.add('active');
+    
+    // Store streams globally for selection
+    window.currentStreams = streams;
+}
+
+async function selectStream(index) {
+    const streams = window.currentStreams;
+    if (!streams || !streams[index]) {
+        showToast('Invalid stream selection', 'error');
+        return;
+    }
+    
+    const stream = streams[index];
+    console.log(`[DEBUG] Selected stream:`, stream);
+    
+    // Generate magnet link
+    const trackers = [
+        'udp://open.demonii.com:1337/announce',
+        'udp://tracker.openbittorrent.com:80',
+        'udp://tracker.coppersurfer.tk:6969',
+        'udp://tracker.opentrackr.org:1337/announce',
+        'udp://exodus.desync.com:6969/announce'
+    ];
+    
+    let magnet = `magnet:?xt=urn:btih:${stream.hash}`;
+    trackers.forEach(tracker => {
+        magnet += `&tr=${encodeURIComponent(tracker)}`;
+    });
+    
+    console.log(`[DEBUG] Generated magnet:`, magnet.substring(0, 100) + '...');
+    
+    closeModal();
+    
+    if (stream.cached) {
+        showToast('🚀 Streaming cached torrent (instant!)...', 'success');
+    } else {
+        showToast('⏳ Adding uncached torrent to Real Debrid...', 'success');
+    }
+    
+    streamMagnet(magnet);
+}
+
+// Make functions globally available
+window.selectStream = selectStream;
+window.streamMovieWithTorrentio = streamMovieWithTorrentio;
 
 async function streamMovie(title, year, poster, overview) {
     console.log(`[DEBUG] streamMovie called: ${title} (${year})`);
