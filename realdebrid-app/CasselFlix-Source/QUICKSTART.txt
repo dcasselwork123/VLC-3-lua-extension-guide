@@ -1,0 +1,37 @@
+QUICK START GUIDE
+==================
+
+FOR END USERS:
+--------------
+If you just want to USE the app:
+1. Wait for a pre-built release
+2. Download the .exe file
+3. Run it!
+
+FOR DEVELOPERS:
+---------------
+If you want to BUILD the app:
+
+1. Install Node.js from: https://nodejs.org/
+2. Open Command Prompt in this folder
+3. Run: npm install
+4. Run: npm start (to test)
+5. Run: npm run build:win (to build)
+6. Find built app in dist/ folder
+
+REQUIREMENTS:
+-------------
+- Node.js (v16 or higher)
+- VLC Media Player (for playing streams)
+- Real Debrid account
+- TMDB API key (optional, for browsing)
+
+MORE INFO:
+----------
+See README.md for full documentation
+See INSTALLATION.md for detailed build instructions
+
+SUPPORT:
+--------
+- Check INSTALLATION.md for troubleshooting
+- Open an issue on GitHub for bugs
